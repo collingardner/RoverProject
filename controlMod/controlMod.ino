@@ -35,9 +35,13 @@ int rightMotorPin = 5;
 int leftMotorPin = 6;
 int rightDirectionPin = 7;
 int leftDirectionPin = 8;
-int leftspeed = 255; //255 is maximum speed
+int leftspeed = 255; //setmaximum speed, goes constant speed
 int rightspeed = 255;
 
+int altLeftSpeed = 126;// this will be to put the rover into low speed mode
+int altRightSpeed = 126;
+
+//Also will add option of pressing 1, being controlled mode, and pressing 2, being self drving mode
 
 // Create the bluefruit object, either software serial...uncomment these lines
 
@@ -150,61 +154,121 @@ void setup(void)
 /**************************************************************************/
 void loop(void)
 {
+  //thiis for calculating the distance objects in cm from the Ultrasonic Sensor
+ int duration, distance;    //Adding duration and distance
+ int turnCount;
+  digitalWrite(triggerPin, HIGH); //triggering the wave(like blinking an LED)
+ 
+  digitalWrite(triggerPin, LOW);
+
+  
+  duration = pulseIn(echoPin, HIGH); //a special function for listening and waiting for the wave
+  distance = (duration/2) / 29.1; //transforming the number to cm(if you want inches, you have to change the 29.1 with a suitable number
+ 
+ Serial.print(distance);    //printing the numbers
+  Serial.print("cm");       //and the unit
+  Serial.println(" ");      //just printing to a new line
+
+
+
+//this is where it self drive
+
   /* Wait for new data to arrive */
   uint8_t len = readPacket(&ble, BLE_READPACKET_TIMEOUT);
   if (len == 0) return;
 
-  /* Got a packet! */
-  // printHex(packetbuffer, len);
+  bool selfDrive;
+  bool userDrive;
 
-//  // Color
-//  if (packetbuffer[1] == 'C') {
-//    uint8_t red = packetbuffer[2];
-//    uint8_t green = packetbuffer[3];
-//    uint8_t blue = packetbuffer[4];
-//    Serial.print ("RGB #");
-//    if (red < 0x10) Serial.print("0");
-//    Serial.print(red, HEX);
-//    if (green < 0x10) Serial.print("0");
-//    Serial.print(green, HEX);
-//    if (blue < 0x10) Serial.print("0");
-//    Serial.println(blue, HEX);
-//  }
-  int duration, distance;    //Adding duration and distance
   
+  
+ 
+
+  //this will stop the vehicle if the distance sensor thinks it will run into something
+  //regardless if the buttton on controller is pressed or not
+//    if(distance < 10 && distance > 0 ){
+//      stop();
+//      delay(1000);//delay 1000 ms
+//      left (leftspeed, rightspeed);
+//      delay(2500);
+//    }
+
+  // Buttons
+ if (packetbuffer[1] == 'B') {
+    uint8_t buttnum = packetbuffer[2] - '0';
+    boolean pressed = packetbuffer[3] - '0';
+   // Serial.print ("Button "); Serial.print(buttnum);
+   
+    //This is to change the speeds of the vehicle
+
+     if(buttnum == 3 ){//dont know if i need if pressed == true
+ 
+
   digitalWrite(triggerPin, HIGH); //triggering the wave(like blinking an LED)
-  delay(10);
+ //  delay(10);
   digitalWrite(triggerPin, LOW);
+
   
   duration = pulseIn(echoPin, HIGH); //a special function for listening and waiting for the wave
   distance = (duration/2) / 29.1; //transforming the number to cm(if you want inches, you have to change the 29.1 with a suitable number
   
-  Serial.print(distance);    //printing the numbers
+ Serial.print(distance);    //printing the numbers
   Serial.print("cm");       //and the unit
   Serial.println(" ");      //just printing to a new line
-  
-  //IF YOU WANT THE PORGRAM SPITTING OUT INFORMATION SLOWER, JUST UNCOMMENT(DELETE THE 2 //) THE NEXT LINE AND CHANGE THE NUMBER
-  //delay(500);
 
+//forward(leftspeed,rightspeed);
+    if(distance < 10  && distance > 0){
+    turnLeft(leftspeed,rightspeed);
+    delay(2500); // how ever many milliseconds it takes to turn 90 degrees
+    }
+    else{
+      if(distance > 10)
+      forward(leftspeed,rightspeed);
+      else
+      stop();
+    }
+  }
 
+   else if(buttnum == 1 ){
+        leftspeed = 200;
+        rightspeed = 200;
+    } 
+    else if(buttnum ==2 ){
+      leftspeed = 255;
+      rightspeed = 255;
+    }
+//    else{
+//      //DO NOTHING
+//    }
 
+//    if(buttnum == 3){
+//      selfDrive = true;
+//      userDrive = false;
+//    } 
+//    else if(buttnum == 4){
+//      userDrive = true;
+//      selfDrive = false;
+//    }
+//    else{
+//      //selfDrive = false;
+//      //userDrive = true;
+//    }
 
-
-
-
-  // Buttons
-  if (packetbuffer[1] == 'B') {
-    uint8_t buttnum = packetbuffer[2] - '0';
-    boolean pressed = packetbuffer[3] - '0';
-   // Serial.print ("Button "); Serial.print(buttnum);
-    if (buttnum == 5 && pressed == true) {
+//Make Big if controlled do the below code, elseif button = 1,pressed == true, and released == true, for selfdriving buttong pressed, else = stop around this
+//Serial.print("selfdrive");
+//Serial.print(selfDrive);
+//Serial.print("userDrive");
+//Serial.print(userDrive); 
+  else if (buttnum == 5 && pressed == true) {
      forward (leftspeed, rightspeed);
+     turnCount = 0;
     }
    else if (buttnum == 7 && pressed == true) {
-     left (leftspeed, rightspeed);
+     turnLeft (leftspeed, rightspeed);
+     turnCount = 0;
     }
-   else if (buttnum == 8 && pressed == true) {
-     right (leftspeed, rightspeed);
+   else if (buttnum == 8 && pressed == true ) {
+     turnRight (leftspeed, rightspeed);
     }
    else if (buttnum == 6 && pressed == true) {
      reverse (leftspeed, rightspeed);
@@ -212,7 +276,9 @@ void loop(void)
     else {
       stop();
     }
-  }
+}
+
+ 
 }
 //METHODS FOR TRAVELING
 void stop(void) //Stop
@@ -237,7 +303,7 @@ void reverse (char a, char b)
   digitalWrite(rightDirectionPin, HIGH);
 }
 
-void left (char a, char b)
+void turnLeft(char a, char b)
 {
   analogWrite (leftMotorPin, a);
   digitalWrite(leftDirectionPin, HIGH);
@@ -245,13 +311,11 @@ void left (char a, char b)
   digitalWrite(rightDirectionPin, LOW);
 }
 
-void right (char a, char b)
+void turnRight(char a, char b)
 {
   analogWrite (leftMotorPin, a);
   digitalWrite(leftDirectionPin, LOW);
   analogWrite (rightMotorPin, b);
   digitalWrite(rightDirectionPin, HIGH);
 }
-
-
 
